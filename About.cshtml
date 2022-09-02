@@ -1,0 +1,307 @@
+﻿@{
+    ViewBag.Title = "About";
+}
+<h2>@ViewBag.Title.</h2>
+<h3>@ViewBag.Message</h3>
+
+<div class="container">
+    <div class="row">&nbsp;</div>
+    <div class="row">
+        <div class="col-2">Sender Id: <span id="senderId">@ViewBag.UserID</span> <input type="button" id="logOutButton" value="Logout" /></div>
+    </div>
+    <div class="row">&nbsp;</div>
+    <div class="row">
+        <div class="col-6">
+            <table class="table">
+                <tr>
+                    <th>
+                        User Id
+                    </th>
+                    <th>
+                        Status
+                    </th>
+                    <th>
+
+                    </th>
+                    <th></th>
+                </tr>
+
+                @foreach (var item in @ViewBag.UserList)
+                {
+                    <tr>
+                        <td>
+                            <a onclick="selectUser('@item.user_id');">@item.user_id</a>
+                        </td>
+                        <td>
+                            <span id="rec-@item.user_id">@item.status</span>
+                        </td>
+                    </tr>
+                }
+            </table>
+        </div>
+    </div>
+
+    @*<div class="row">
+            <div class="col-2">Sender:</div>
+            <div class="col-4"><span id="connectionId"></span></div>
+        </div>*@
+    @*<div class="row">
+            <div class="col-2">Sender</div>
+            <div class="col-4"><input type="text" id="senderInput" /></div>
+        </div>*@
+    <div class="row">
+        <div class="col-2">Receiver</div>
+        <div class="col-4"><input type="text" id="receiverInput" /></div>
+    </div>
+    <div class="row">
+        <div class="col-2">Message</div>
+        <div class="col-4"><input type="text" id="messageInput" /></div>
+    </div>
+    <div class="row">&nbsp;</div>
+    <div class="row">
+        <div class="col-6">
+            <input type="button" id="sendButton" value="Send Message" />
+        </div>
+    </div>
+    <div class="row">
+        <div class="col-6">
+            <ul id="messagesList"></ul>
+        </div>
+    </div>
+</div>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.0/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.8/signalr.min.js"></script>
+<script>
+
+    function selectUser(u1) {
+        document.getElementById("receiverInput").value = u1;
+    }
+    document.addEventListener("DOMContentLoaded", () => {
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("http://localhost:32879/chathub", (opts) => opts.Headers.Add("Authorization", "12345"))
+            .configureLogging(signalR.LogLevel.Information)
+            .build();
+        //connection.hub.qs = { "UserId": tokenValue };
+
+        connection.on("ReceiveMessage", function (user, receiver, message) {
+            var msg = message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            var encodedMsg = user + " says " + msg;
+            var li = document.createElement("li");
+            li.textContent = encodedMsg;
+            console.log(document.getElementById("messagesList"))
+            document.getElementById("messagesList").appendChild(li);
+        });
+
+        connection.on("SendMessage", function (user, receiver, message) {
+            var msg = message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            var encodedMsg = user + " sent " + msg + " to " + receiver;
+            var li = document.createElement("li");
+            li.textContent = encodedMsg;
+            console.log(document.getElementById("messagesList"))
+            document.getElementById("messagesList").appendChild(li);
+        });
+
+        //connection.on("OnConnected", function (user, message) {
+        //    var msg = message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        //    var encodedMsg = user + " says " + msg;
+        //    var li = document.createElement("li");
+        //    li.textContent = encodedMsg;
+        //    console.log(document.getElementById("userList"))
+        //    document.getElementById("userList").appendChild(li);
+        //});
+
+        document.getElementById("sendButton").addEventListener("click", function (event) {
+            var senderId = document.getElementById("senderId").innerText;
+            var receiverId = document.getElementById("receiverInput").value;
+            var message = document.getElementById("messageInput").value;
+
+            connection.invoke("SendMessageToUser", senderId, receiverId, message).catch(function (err) {
+                return console.error(err.toString());
+            });
+            event.preventDefault();
+        });
+
+        //document.getElementById("joinButton").addEventListener("click", function (event) {
+        //    var sender = document.getElementById("userInput").value;
+        //    var connectionId = connection.connectionId;
+        //    document.getElementById("spnUserName").innerText = sender;
+        //    connection.invoke("MapConnection", sender, connectionId).then(function (lstUsers) {
+        //        $.each(lstUsers, function (i, item) {
+        //            //document.getElementById("connectionId").innerText = item.connectionId;
+        //            //var usrName = item.username.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        //            var status = item.chat_status == true ? "online" : "offline";
+        //            var userDetail = item.user_id + " says " + status;
+        //            var li = document.createElement("li");
+        //            li.textContent = userDetail;
+        //            document.getElementById("userList").appendChild(li);
+        //        });
+        //    });
+        //});
+
+        connection.on("OnMapped", function (sender, lstUsers) {
+            sender = document.getElementById("senderId").innerText;
+            $.each(lstUsers, function (i, item) {
+                if (sender != item.user_id) {
+                    var status = item.chat_status == true ? "online" : "offline";
+                    var spnId = "rec-" + item.user_id;
+                    document.getElementById(spnId).innerText = status;
+                }
+            });
+        });
+
+        connection.on("OnDisconnect", function (sender, lstUsers) {
+            sender = document.getElementById("senderId").innerText;
+            $.each(lstUsers, function (i, item) {
+                if (sender != item.user_id) {
+                    var status = item.chat_status == true ? "online" : "offline";
+                    var spnId = "rec-" + item.user_id;
+                    document.getElementById(spnId).innerText = status;
+                }
+            });
+        });
+
+        //document.getElementById("joinButton").addEventListener("click", function (event) {
+        //    var sender = document.getElementById("userInput").value;
+        //    var connectionId = connection.connectionId;
+        //    document.getElementById("spnUserName").innerText = sender;
+        //    connection.invoke("MapConnection", sender, connectionId).then(function (lstUsers) {
+        //        $.each(lstUsers, function (i, item) {
+        //            //document.getElementById("connectionId").innerText = item.connectionId;
+        //            //var usrName = item.username.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        //            var status = item.chat_status == true ? "online" : "offline";
+        //            var userDetail = item.user_id + " says " + status;
+        //            var li = document.createElement("li");
+        //            li.textContent = userDetail;
+        //            document.getElementById("userList").appendChild(li);
+        //        });
+        //    });
+        //});
+
+        //connection.on("UsersOnline", function (lstUsers) {
+        //    $.each(lstUsers, function (i, item) {
+        //        //document.getElementById("connectionId").innerText = item.connectionId;
+        //        //var usrName = item.username.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+        //        var status = item.isOnline == true ? "online" : "offline";
+        //        var userDetail = item.username + " says " + status;
+        //        var li = document.createElement("li");
+        //        li.textContent = userDetail;
+        //        document.getElementById("userList").appendChild(li);
+        //    });
+        //});
+        connection.start().then(function () {
+            var sender = document.getElementById("senderId").innerText;
+            var connectionId = connection.connectionId;
+            connection.invoke("MapConnection", sender, connectionId).then(function (lstUsers) {
+                //document.getElementById("connectionId").innerText = id;
+                $.each(lstUsers, function (i, item) {
+                    if (sender != item.user_id) {
+                        var status = item.chat_status == true ? "online" : "offline";
+                        var spnId = "rec-" + item.user_id;
+                        document.getElementById(spnId).innerText = status;
+                    }
+                });
+            });
+        }).catch(function (err) {
+            return console.error(err.toString());
+        });
+        //async function start() {
+        //    try {
+        //        await connection.start();
+        //        console.log("SignalR Connected.");
+        //        console.log(connection);
+        //    } catch (err) {
+        //        console.log(err);
+        //        setTimeout(start, 5000);
+        //    }
+        //};
+
+        document.getElementById("logOutButton").addEventListener("click", function (event) {
+            var sender = document.getElementById("senderId").innerText;
+            connection.invoke("CloseConnection", sender).then(function (lstUsers) {
+                $.each(lstUsers, function (i, item) {
+                    if (sender != item.user_id) {
+                        var status = item.chat_status == true ? "online" : "offline";
+                        var spnId = "rec-" + item.user_id;
+                        document.getElementById(spnId).innerText = status;
+                    }
+                });
+            }).catch(function (err) {
+                return console.error(err.toString());
+            });
+            connection.stop();
+        });
+            
+        //connection.onclose(async () => {
+        //    await start();
+        //});
+
+        // Start the connection.
+        //start();
+    });
+    //const connection = new signalR.HubConnectionBuilder()
+    //    .withUrl("http://localhost:32879/chathub")
+    //    .configureLogging(signalR.LogLevel.Information)
+    //    .build();
+
+</script>
+@*<p>Use this area to provide additional information.</p>
+    <h2>Chat Test</h2>
+    <label>User</label>
+    <input id="userInput" />
+    <label>Meessage</label>
+    <input id="messageInput" />
+    <button id="send" type="button">Send Meessage</button>
+    <hr>
+
+    <ul id="messageList"></ul>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/6.0.8/signalr.min.js"></script>
+    <script>
+    document.addEventListener("DOMContentLoaded", () => {
+
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("http://localhost:32879/chathub")
+            .configureLogging(signalR.LogLevel.Information)
+            .build();
+
+        connection.on("ReceiveMessage", (user, message) => {
+            const li = document.createElement("li");
+            li.textContent = user + ':' + message;
+            document.getElementById("messageList").appendChild(li);
+        });
+
+        document.getElementById("send").addEventListener("click", async () => {
+            const user = document.getElementById("userInput").value;
+            const message = document.getElementById("messageInput").value;
+
+            try {
+                var postMessage = {
+                    "User": user,
+                    "Message": message
+                }
+                await connection.invoke("SendMessage", postMessage);
+            } catch (err) {
+                console.error(err);
+            }
+
+        });
+
+
+        async function start() {
+            try {
+                await connection.start();
+                console.log("SignalR Connected.");
+            } catch (err) {
+                console.log(err);
+                setTimeout(start, 5000);
+            }
+        };
+
+        connection.onclose(async () => {
+            await start();
+        });
+
+        // Start the connection.
+        start();
+    });
+    </script>*@
